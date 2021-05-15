@@ -1,0 +1,83 @@
+name: build
+on:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+env:
+  UNBOUND_REF: release-1.13.1
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+       include:
+         - msystem: MINGW32
+           arch_name: i686
+           mingw32_dir: mingw32
+           artifact_postfix: 32-bit
+         - msystem: MINGW64
+           arch_name: x86_64
+           mingw32_dir: mingw64
+           artifact_postfix: 64-bit
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-${{ matrix.arch_name }}-toolchain
+            mingw-w64-${{ matrix.arch_name }}-openssl
+            mingw-w64-${{ matrix.arch_name }}-expat
+      - name: Checkout Unbound repository at ${{ env.UNBOUND_REF }}
+        uses: actions/checkout@v2
+        with:
+          repository: NLnetLabs/unbound
+          ref: ${{ env.UNBOUND_REF }}
+      - name: Fix detection of MinGW 64-bit shell
+        if: ${{ matrix.msystem == 'MINGW64' }}
+        run: sed -i 's|grep MINGW32|grep MINGW|g' configure
+      - name: Configure Unbound
+        run: |
+          # Statically include gcc library (only needed for 32-bit)
+          export CC="gcc -static-libgcc"
+          # Configure libunbound build
+          ./configure --with-libunbound-only --with-ssl=/${{ matrix.mingw32_dir }} --with-libexpat=/${{ matrix.mingw32_dir }}
+      - name: Statically include OpenSSL
+        run: |
+          sed -i 's|-lssl|-Wl,--whole-archive,/${{ matrix.mingw32_dir }}/lib/libssl.a,--no-whole-archive|g' Makefile
+          sed -i 's|-lcrypto|-Wl,--whole-archive,/${{ matrix.mingw32_dir }}/lib/libcrypto.a,--no-whole-archive|g' Makefile
+      - name: Build Unbound
+        run: make -j 4
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: libunbound_${{ env.UNBOUND_REF }}_${{ matrix.artifact_postfix }}
+          path: .libs/libunbound-8.dll
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+      - name: Create release artifacts
+        run: |
+          zip libunbound_${{ env.UNBOUND_REF }}_32-bit.zip -j release_artifacts/* libunbound_${{ env.UNBOUND_REF }}_32-bit/*
+          zip libunbound_${{ env.UNBOUND_REF }}_64-bit.zip -j release_artifacts/* libunbound_${{ env.UNBOUND_REF }}_64-bit/*
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            Builds of libunbound version ${{ env.UNBOUND_REF }}
+          files: |
+            libunbound_${{ env.UNBOUND_REF }}_32-bit.zip
+            libunbound_${{ env.UNBOUND_REF }}_64-bit.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
