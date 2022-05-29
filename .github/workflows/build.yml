@@ -4,7 +4,7 @@ on:
     paths:
       - '.github/workflows/build.yml'
 env:
-  UNBOUND_REF: release-1.13.1
+  UNBOUND_REF: release-1.15.0
 jobs:
   build:
     runs-on: windows-latest
@@ -38,9 +38,6 @@ jobs:
         with:
           repository: NLnetLabs/unbound
           ref: ${{ env.UNBOUND_REF }}
-      - name: Fix detection of MinGW 64-bit shell
-        if: ${{ matrix.msystem == 'MINGW64' }}
-        run: sed -i 's|grep MINGW32|grep MINGW|g' configure
       - name: Configure Unbound
         run: |
           # Statically include gcc library (only needed for 32-bit)
