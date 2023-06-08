@@ -34,7 +34,7 @@ jobs:
             mingw-w64-${{ matrix.arch_name }}-openssl
             mingw-w64-${{ matrix.arch_name }}-expat
       - name: Checkout Unbound repository at ${{ env.UNBOUND_REF }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: NLnetLabs/unbound
           ref: ${{ env.UNBOUND_REF }}
@@ -51,7 +51,7 @@ jobs:
       - name: Build Unbound
         run: make -j 4
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: libunbound_${{ env.UNBOUND_REF }}_${{ matrix.artifact_postfix }}
           path: .libs/libunbound-8.dll
@@ -61,9 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
       - name: Create release artifacts
         run: |
           zip libunbound_${{ env.UNBOUND_REF }}_32-bit.zip -j release_artifacts/* libunbound_${{ env.UNBOUND_REF }}_32-bit/*
